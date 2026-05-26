@@ -1,0 +1,10 @@
+diff --git a/src/service.py b/src/service.py
+index 1111111..2222222 100644
+--- a/src/service.py
++++ b/src/service.py
+@@ -2,4 +2,4 @@
+ 
+ def greet(name: str) -> str:
+-    """Return a greeting."""
++    """Return a friendly greeting."""
+     return f"Hello, {name}"

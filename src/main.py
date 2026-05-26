@@ -8,6 +8,11 @@ import os
 from pathlib import Path
 
 import typer
+
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None  # type: ignore[assignment,misc]
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -31,6 +36,23 @@ app = typer.Typer(
     add_completion=False,
 )
 console = Console()
+
+if load_dotenv is not None:
+    load_dotenv()
+
+
+def _env_path(name: str, fallback: Path) -> Path:
+    raw = os.environ.get(name)
+    if raw:
+        return Path(raw)
+    return fallback
+
+
+def _env_int(name: str) -> int | None:
+    raw = os.environ.get(name)
+    if not raw:
+        return None
+    return int(raw)
 
 
 @app.callback()
@@ -284,24 +306,24 @@ def repair(
 
 @app.command()
 def run(
-    repo_path: Path = typer.Option(
-        Path("."),
+    repo_path: Path | None = typer.Option(
+        None,
         "--repo-path",
-        help="Root of the repository to scan.",
+        help="Root of the repository to scan (defaults to GITHUB_WORKSPACE or .).",
         exists=True,
         file_okay=False,
         dir_okay=True,
         resolve_path=True,
     ),
-    base_branch: str = typer.Option(
-        "main",
+    base_branch: str | None = typer.Option(
+        None,
         "--base-branch",
-        help="Base branch for fix PRs and link graph context.",
+        help="Base branch for fix PRs (defaults to BASE_BRANCH env or main).",
     ),
-    pr_number: int = typer.Option(
-        ...,
+    pr_number: int | None = typer.Option(
+        None,
         "--pr-number",
-        help="Pull request number that triggered this run.",
+        help="Pull request number (defaults to PR_NUMBER env var).",
     ),
     output_dir: Path = typer.Option(
         Path(".docsentinel"),
@@ -320,7 +342,14 @@ def run(
     ),
 ) -> None:
     """Run the full DocSentinel pipeline for a pull request."""
-    root = repo_path.resolve()
+    root = (repo_path or _env_path("GITHUB_WORKSPACE", Path("."))).resolve()
+    resolved_base_branch = base_branch or os.environ.get("BASE_BRANCH", "main")
+    resolved_pr_number = pr_number if pr_number is not None else _env_int("PR_NUMBER")
+    if resolved_pr_number is None:
+        raise typer.BadParameter(
+            "PR number required: set PR_NUMBER or pass --pr-number."
+        )
+
     token = github_token or os.environ.get("GITHUB_TOKEN")
     repo_name = github_repo or os.environ.get("GITHUB_REPOSITORY")
     if not token:
@@ -335,7 +364,7 @@ def run(
     console.print(
         Panel(
             f"[bold]DocSentinel run[/bold]  {root}\n"
-            f"[dim]PR:[/dim] #{pr_number}  "
+            f"[dim]PR:[/dim] #{resolved_pr_number}  "
             f"[dim]repo:[/dim] {repo_name}",
             border_style="blue",
         )
@@ -344,7 +373,7 @@ def run(
     client = GitHubClient(token=token, repo_name=repo_name)
 
     with console.status("[bold green]Fetching PR diff…"):
-        diff_text = asyncio.run(client.fetch_pr_diff(pr_number))
+        diff_text = asyncio.run(client.fetch_pr_diff(resolved_pr_number))
 
     with console.status("[bold green]Parsing diff…"):
         changes = parse_diff(diff_text)
@@ -393,18 +422,20 @@ def run(
     if auto_fix:
         with console.status("[bold green]Creating fix PR…"):
             fix_pr_url = asyncio.run(
-                client.create_fix_pr(base_branch, auto_fix, all_sections)
+                client.create_fix_pr(resolved_base_branch, auto_fix, all_sections)
             )
         console.print(f"  Fix PR: [link={fix_pr_url}]{fix_pr_url}[/link]")
 
     if flagged:
         with console.status("[bold green]Posting review comment…"):
-            asyncio.run(client.post_review_comment(pr_number, flagged, all_sections))
+            asyncio.run(
+                client.post_review_comment(resolved_pr_number, flagged, all_sections)
+            )
 
     with console.status("[bold green]Posting summary comment…"):
         asyncio.run(
             client.post_summary_comment(
-                pr_number,
+                resolved_pr_number,
                 len(auto_fix),
                 len(flagged),
                 fix_pr_url,

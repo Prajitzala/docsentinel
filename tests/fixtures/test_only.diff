@@ -1,0 +1,8 @@
+diff --git a/tests/test_service.py b/tests/test_service.py
+index 1111111..2222222 100644
+--- a/tests/test_service.py
++++ b/tests/test_service.py
+@@ -1,2 +1,2 @@
+ def test_greet():
+-    assert greet("world") == "Hello, world"
++    assert greet("world", loud=True) == "HELLO, world"

@@ -1,0 +1,215 @@
+# DocSentinel — Cursor AI Rules
+
+## What This Project Is
+A GitHub Action that detects when code changes make documentation stale, then either
+auto-generates a corrected PR or flags sections for human review. Pure AI engineering —
+no ML training. Uses embeddings + LLM calls only.
+
+## Project Structure
+```
+docsentinel/
+├── action.yml              # GitHub Action definition (inputs, outputs, runs)
+├── Dockerfile              # Packages the action for marketplace
+├── src/
+│   ├── main.py             # CLI entry point via Typer. Commands: index, detect, repair, run
+│   ├── parser.py           # Parses code (AST) and docs (markdown) into typed chunks
+│   ├── embedder.py         # ChromaDB store + OpenAI embeddings + link graph builder
+│   ├── detector.py         # Parses git diff, filters meaningful changes, LLM staleness check
+│   ├── rewriter.py         # LLM-powered doc repair with confidence scoring + routing
+│   └── github_client.py    # PR creation, PR comment posting via PyGithub
+├── tests/
+│   ├── fixtures/           # Sample code files and markdown docs for testing
+│   ├── test_parser.py
+│   ├── test_embedder.py
+│   ├── test_detector.py
+│   └── test_rewriter.py
+├── requirements.txt
+├── .env.example
+├── CLAUDE.md
+└── README.md
+```
+
+## Tech Stack — Use Exactly These
+- **Python 3.11+** — use match/case, tomllib, exception groups where appropriate
+- **Pydantic v2** — all data models. Use `model_validator`, `field_validator`, never v1 syntax
+- **ChromaDB** — file-based only (`chromadb.PersistentClient`), never HTTP client
+- **openai** — `text-embedding-3-small` for embeddings, `gpt-4o` for LLM tasks
+- **PyGithub** — PR creation, comment posting, diff fetching
+- **Typer** — CLI. All commands in `main.py`
+- **Rich** — all terminal output. Use `Console`, `Panel`, `Table`, `Progress`
+- **python-dotenv** — load `.env` in development only
+- **pytest** — all tests. Use `pytest-asyncio` for async tests
+
+## Core Data Models (pydantic v2)
+Always use these exact models — do not redefine or rename them:
+
+```python
+# parser.py
+class CodeChunk(BaseModel):
+    id: str                    # f"{filepath}::{function_name}"
+    filepath: str
+    function_name: str
+    signature: str
+    docstring: str | None
+    body_hash: str             # SHA-256 of function body for change detection
+    line_start: int
+    line_end: int
+
+class DocSection(BaseModel):
+    id: str                    # f"{filepath}::{heading_path}"
+    filepath: str
+    heading_path: str          # e.g. "Configuration > Environment Variables"
+    content: str
+    heading_level: int
+    code_references: list[str] # function/class names mentioned in this section
+
+# embedder.py
+class LinkGraph(BaseModel):
+    links: dict[str, list[str]]  # doc_section_id -> list[code_chunk_id]
+    similarity_threshold: float = 0.75
+
+# detector.py
+class CodeChange(BaseModel):
+    filepath: str
+    function_name: str | None
+    change_type: Literal["added", "removed", "modified"]
+    old_content: str | None
+    new_content: str | None
+    is_meaningful: bool        # False for comment-only, whitespace, test files
+
+class StalenessResult(BaseModel):
+    doc_section_id: str
+    code_chunk_id: str
+    is_stale: bool
+    reason: str | None
+    confidence: float          # 0.0 - 1.0
+
+# rewriter.py
+class CorrectionResult(BaseModel):
+    doc_section_id: str
+    original_content: str
+    corrected_content: str
+    confidence: float
+    correction_mode: Literal["auto_fix", "human_review"]
+    changes_summary: str
+```
+
+## Coding Conventions
+
+### Always
+- Type hint every function parameter and return value
+- Use `pathlib.Path` for all file paths, never `os.path`
+- Use `httpx` for any HTTP calls (not `requests`)
+- Log with `structlog` — structured JSON in prod, pretty in dev
+- All secrets via environment variables — never hardcoded
+- One responsibility per function — if a function does two things, split it
+- Docstrings on all public functions (Google style)
+
+### Never
+- `except Exception` or bare `except:` — always catch specific exceptions
+- `print()` — use `rich.console.Console` or `structlog`
+- Synchronous file I/O in async context — use `anyio.open_file`
+- Mutate Pydantic models after creation — use `model_copy(update={...})`
+- String concatenation for prompts — use multi-line f-strings or `textwrap.dedent`
+- Magic numbers — define constants at module level in UPPER_SNAKE_CASE
+
+### Async Rules
+- `embedder.py` and `github_client.py` are fully async
+- `parser.py` and `detector.py` are sync (CPU-bound, no I/O)
+- `rewriter.py` is async (LLM calls)
+- `main.py` uses `asyncio.run()` at the entry point only
+
+## LLM Call Patterns
+Always structure LLM calls this way:
+
+```python
+# Use instructor for structured outputs — never parse JSON manually
+import instructor
+from openai import AsyncOpenAI
+
+client = instructor.from_openai(AsyncOpenAI())
+
+result = await client.chat.completions.create(
+    model="gpt-4o",
+    response_model=StalenessResult,
+    messages=[
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_prompt}
+    ],
+    max_retries=2,
+)
+```
+
+- System prompts are module-level constants, never inline strings
+- All prompts in `src/prompts/` as `.txt` files, loaded at import time
+- Never ask the LLM to infer information not present in the provided context
+
+## ChromaDB Usage
+```python
+# Always use PersistentClient — never EphemeralClient in production
+import chromadb
+
+client = chromadb.PersistentClient(path=str(settings.chroma_db_path))
+code_collection = client.get_or_create_collection("code_chunks")
+doc_collection = client.get_or_create_collection("doc_sections")
+
+# Metadata stored alongside every embedding
+code_collection.add(
+    ids=[chunk.id],
+    embeddings=[embedding],
+    metadatas=[chunk.model_dump(exclude={"id"})],
+    documents=[chunk.signature + "\n" + (chunk.docstring or "")]
+)
+```
+
+## Environment Variables
+```
+OPENAI_API_KEY=          # required
+GITHUB_TOKEN=            # required for PR creation
+CHROMA_DB_PATH=./.chroma # default
+SIMILARITY_THRESHOLD=0.75
+AUTO_FIX_CONFIDENCE=0.85 # above this = auto PR, below = human review flag
+LOG_LEVEL=INFO
+```
+
+## Git Diff Parsing Rules (detector.py)
+Skip these changes — they are never meaningful:
+- Files matching: `*.test.*`, `*_test.py`, `test_*.py`, `*.spec.*`
+- Changes that only affect comments or whitespace
+- Changes to `__init__.py` that only add/remove imports
+- Docstring-only changes (content without signature change)
+
+Flag these as meaningful:
+- Function signature changes (parameter names, types, defaults)
+- New or removed public functions/classes
+- Configuration schema changes
+- API endpoint definition changes
+- Return type changes
+
+## Testing Conventions
+- Every public function has at least one test
+- Use `tests/fixtures/` for sample `.py` and `.md` files — never generate test data inline
+- Mock all OpenAI calls — never hit real API in tests
+- Mock all GitHub API calls
+- Use `pytest.mark.asyncio` for async tests
+- Test file naming: `test_{module_name}.py`
+
+## GitHub Action Conventions
+- `action.yml` inputs map 1:1 to environment variables
+- Action always posts a summary comment on the triggering PR
+- Exit code 0 = success (even if stale docs found — that's expected)
+- Exit code 1 = system error only
+- All action outputs: `stale_sections_count`, `auto_fixed_count`, `flagged_count`
+
+## Phase Tracking
+Current build phase: **Phase 1 — Parser + Embedder**
+- [x] Project structure
+- [ ] parser.py (CodeChunk + DocSection extraction)
+- [ ] embedder.py (ChromaDB + link graph)
+- [ ] main.py index command
+- [ ] Phase 2: detector.py + git diff
+- [ ] Phase 3: rewriter.py
+- [ ] Phase 4: github_client.py + PR workflow
+- [ ] Phase 5: action.yml + Dockerfile
+
+When a phase completes, update this list and ask the user before starting the next phase.

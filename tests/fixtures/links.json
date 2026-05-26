@@ -1,0 +1,8 @@
+{
+  "docs/guide.md::Guide::Usage": [
+    {
+      "code_key": "src/service.py::greet",
+      "similarity": 0.91
+    }
+  ]
+}

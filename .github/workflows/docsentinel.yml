@@ -1,0 +1,22 @@
+name: DocSentinel
+
+on:
+  pull_request:
+    paths:
+      - "**.py"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  docsentinel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run DocSentinel
+        uses: ./
+        with:
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

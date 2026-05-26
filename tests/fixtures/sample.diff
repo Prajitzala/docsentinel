@@ -1,0 +1,12 @@
+diff --git a/src/service.py b/src/service.py
+index 1111111..2222222 100644
+--- a/src/service.py
++++ b/src/service.py
+@@ -1,5 +1,5 @@
+ """Service module."""
+ 
+-def greet(name: str) -> str:
++def greet(name: str, loud: bool = False) -> str:
+     """Return a greeting."""
+-    return f"Hello, {name}"
++    return f"HELLO, {name}" if loud else f"Hello, {name}"

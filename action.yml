@@ -1,0 +1,42 @@
+name: DocSentinel
+description: Detects stale documentation when code changes and auto-fixes it
+
+inputs:
+  openai_api_key:
+    description: OpenAI API key
+    required: true
+  github_token:
+    description: GitHub token
+    required: true
+  base_branch:
+    description: Base branch
+    required: false
+    default: main
+  auto_fix_confidence:
+    description: Confidence threshold
+    required: false
+    default: "0.85"
+  similarity_threshold:
+    description: Link graph threshold
+    required: false
+    default: "0.75"
+
+outputs:
+  stale_sections_count:
+    description: Total stale sections found
+  auto_fixed_count:
+    description: Sections auto-corrected via PR
+  flagged_count:
+    description: Sections flagged for human review
+
+runs:
+  using: docker
+  image: Dockerfile
+  env:
+    OPENAI_API_KEY: ${{ inputs.openai_api_key }}
+    GITHUB_TOKEN: ${{ inputs.github_token }}
+    BASE_BRANCH: ${{ inputs.base_branch }}
+    AUTO_FIX_CONFIDENCE: ${{ inputs.auto_fix_confidence }}
+    SIMILARITY_THRESHOLD: ${{ inputs.similarity_threshold }}
+    GITHUB_REPOSITORY: ${{ github.repository }}
+    PR_NUMBER: ${{ github.event.pull_request.number }}
