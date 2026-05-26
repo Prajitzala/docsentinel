@@ -202,14 +202,15 @@ Flag these as meaningful:
 - All action outputs: `stale_sections_count`, `auto_fixed_count`, `flagged_count`
 
 ## Phase Tracking
-Current build phase: **Phase 1 — Parser + Embedder**
+Current build phase: **v0.1.0 — shipped**
 - [x] Project structure
-- [ ] parser.py (CodeChunk + DocSection extraction)
-- [ ] embedder.py (ChromaDB + link graph)
-- [ ] main.py index command
-- [ ] Phase 2: detector.py + git diff
-- [ ] Phase 3: rewriter.py
-- [ ] Phase 4: github_client.py + PR workflow
-- [ ] Phase 5: action.yml + Dockerfile
+- [x] parser.py (CodeChunk + DocSection extraction)
+- [x] embedder.py (ChromaDB + link graph)
+- [x] main.py index command
+- [x] Phase 2: detector.py + git diff
+- [x] Phase 3: rewriter.py
+- [x] Phase 4: github_client.py + PR workflow
+- [x] Phase 5: action.yml + Dockerfile
+- [x] CI workflow indexes before run on each PR
 
 When a phase completes, update this list and ask the user before starting the next phase.

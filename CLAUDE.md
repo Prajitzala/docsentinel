@@ -144,18 +144,17 @@ results = collection.query(query_embeddings=[...], n_results=10)
 
 ## Current Build Phase
 
-**Phase 1 — Parser + Embedder** (active)
+**v0.1.0 — shipped**
 
-- [ ] `parser.py` — CodeChunk extraction via ast, DocSection via markdown headings
-- [ ] `embedder.py` — ChromaDB collections + link graph builder
-- [ ] `main.py` — `index` command wiring
-- [ ] `tests/fixtures/` — sample .py and .md files
-
-**Upcoming**
-- Phase 2: `detector.py` — git diff parsing + LLM staleness check
-- Phase 3: `rewriter.py` — doc repair + confidence routing
-- Phase 4: `github_client.py` — PR creation + comment posting
-- Phase 5: `action.yml` + `Dockerfile` — GitHub Actions packaging
+- [x] `parser.py` — CodeChunk extraction via ast, DocSection via markdown headings
+- [x] `embedder.py` — ChromaDB collections + link graph builder
+- [x] `main.py` — `index`, `detect`, `repair`, `run` commands
+- [x] `tests/fixtures/` — sample .py and .md files
+- [x] `detector.py` — git diff parsing + LLM staleness check
+- [x] `rewriter.py` — doc repair + confidence routing
+- [x] `github_client.py` — PR creation + comment posting
+- [x] `action.yml` + `Dockerfile` — GitHub Actions packaging
+- [x] CI workflow — index step before Docker `run` on each PR
 
 ## Design Decisions & Rationale
 
