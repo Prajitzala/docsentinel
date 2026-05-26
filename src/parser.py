@@ -182,10 +182,13 @@ def _parse_markdown_file(repo_path: Path, rel_path: Path) -> list[DocSection]:
 def parse_repo(
     repo_path: Path | str,
     exclude_dirs: set[str] | None = None,
+    *,
+    verbose: bool = False,
 ) -> tuple[list[CodeChunk], list[DocSection]]:
     """Walk *repo_path* and return code chunks and documentation sections."""
     root = Path(repo_path).resolve()
     excluded = exclude_dirs or DEFAULT_EXCLUDE_DIRS
+    _ = verbose  # reserved for progress logging
 
     code_chunks: list[CodeChunk] = []
     for rel_path in _iter_repo_files(root, ".py", excluded):
