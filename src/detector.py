@@ -241,6 +241,22 @@ def _assess_meaningful_change(
     return True
 
 
+def _git_file_at_ref(repo_path: Path, ref: str, filepath: str) -> str | None:
+    """Return file contents at *ref*, or None if the path does not exist."""
+    import subprocess
+
+    result = subprocess.run(
+        ["git", "show", f"{ref}:{filepath}"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
+
+
 def _reconstruct_file_source(patched_file: object) -> tuple[str | None, str | None]:
     """Build pre- and post-change file text from hunk lines."""
     old_lines: list[str] = []
@@ -308,7 +324,13 @@ def _build_change(
     )
 
 
-def parse_diff(diff_text: str) -> list[CodeChange]:
+def parse_diff(
+    diff_text: str,
+    *,
+    repo_path: Path | None = None,
+    base_ref: str | None = None,
+    head_ref: str = "HEAD",
+) -> list[CodeChange]:
     """Parse raw git diff output into structured code changes."""
     if not diff_text.strip():
         return []
@@ -321,7 +343,19 @@ def parse_diff(diff_text: str) -> list[CodeChange]:
         if _is_test_file(filepath):
             continue
 
-        old_source, new_source = _reconstruct_file_source(patched_file)
+        if repo_path is not None and base_ref is not None:
+            if patched_file.is_added_file:  # type: ignore[attr-defined]
+                old_source = None
+                new_source = _git_file_at_ref(repo_path, head_ref, filepath)
+            elif patched_file.is_removed_file:  # type: ignore[attr-defined]
+                old_source = _git_file_at_ref(repo_path, base_ref, filepath)
+                new_source = None
+            else:
+                old_source = _git_file_at_ref(repo_path, base_ref, filepath)
+                new_source = _git_file_at_ref(repo_path, head_ref, filepath)
+        else:
+            old_source, new_source = _reconstruct_file_source(patched_file)
+
         old_lines, new_lines = _hunk_changed_lines(patched_file)
 
         old_functions = _index_functions(old_source or "", filepath) if old_source else {}

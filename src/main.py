@@ -140,7 +140,7 @@ def detect(
         diff_text = fetch_git_diff(root, base_branch)
 
     with console.status("[bold green]Parsing diff…"):
-        changes = parse_diff(diff_text)
+        changes = parse_diff(diff_text, repo_path=root, base_ref=base_branch)
 
     meaningful = [change for change in changes if change.is_meaningful]
     console.print(
@@ -253,7 +253,7 @@ def repair(
         diff_text = fetch_git_diff(root, base_branch)
 
     with console.status("[bold green]Parsing diff…"):
-        changes = parse_diff(diff_text)
+        changes = parse_diff(diff_text, repo_path=root, base_ref=base_branch)
 
     doc_ids = sorted({result.doc_section_id for result in stale})
     chroma_dir = output_dir / "chroma"
@@ -376,7 +376,9 @@ def run(
         diff_text = asyncio.run(client.fetch_pr_diff(resolved_pr_number))
 
     with console.status("[bold green]Parsing diff…"):
-        changes = parse_diff(diff_text)
+        changes = parse_diff(
+            diff_text, repo_path=root, base_ref=resolved_base_branch
+        )
 
     meaningful = [change for change in changes if change.is_meaningful]
     console.print(
