@@ -184,11 +184,14 @@ def parse_repo(
     exclude_dirs: set[str] | None = None,
     *,
     verbose: bool = False,
+    dry_run: bool = False,
 ) -> tuple[list[CodeChunk], list[DocSection]]:
     """Walk *repo_path* and return code chunks and documentation sections."""
     root = Path(repo_path).resolve()
     excluded = exclude_dirs or DEFAULT_EXCLUDE_DIRS
     _ = verbose  # reserved for progress logging
+    if dry_run:
+        return [], []
 
     code_chunks: list[CodeChunk] = []
     for rel_path in _iter_repo_files(root, ".py", excluded):
