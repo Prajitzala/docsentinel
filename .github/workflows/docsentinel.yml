@@ -12,8 +12,19 @@ permissions:
 jobs:
   docsentinel:
     runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      PYTHONPATH: src
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+
+      - name: Verify secrets
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "::error::OPENAI_API_KEY is not set. Add it in Settings → Secrets and variables → Actions (name must be exactly OPENAI_API_KEY)."
+            exit 1
+          fi
+          echo "OPENAI_API_KEY is set."
 
       - uses: actions/setup-python@v5
         with:
@@ -23,10 +34,10 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Index code and documentation
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PYTHONPATH: src
         run: python src/main.py index --repo-path .
+
+      - name: Build Docker image
+        run: docker build -t docsentinel .
 
       - name: Run DocSentinel
         uses: ./
