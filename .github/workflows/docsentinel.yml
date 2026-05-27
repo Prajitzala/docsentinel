@@ -24,12 +24,12 @@ jobs:
 
       - name: Index code and documentation
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.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 }}
           PYTHONPATH: src
         run: python src/main.py index --repo-path .
 
       - name: Run DocSentinel
         uses: ./
         with:
-          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          openai_api_key: ${{ secrets.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 }}
+          github_token: ${{ secrets.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 }}
